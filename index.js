@@ -65,7 +65,10 @@ async function start() {
     try {
       const TimeOpenObject = await getOHLCData(symbols[i], 15);
       await updateJsonFile(TimeOpenObject, `./data/${symbols[i]}.json`);
-      console.log('File update complete for ' + symbols[i]);
+      // console.log('File update complete for ' + symbols[i]);
+      const now = new Date();
+      const timestamp = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()} - ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      console.log(`${timestamp} - File update complete for ${symbols[i]}`);
       
       // Delay the next request by 10 seconds (adjustable)
       await delay(60*1000);  // 1 minute between each request
