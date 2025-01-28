@@ -12,7 +12,11 @@ const symbols = [
   'TRX',
   'LINK',
   'AVAX',
-  'DOT'
+  'DOT',
+  'MATIC',
+  'UNI',
+  'SHIB',
+  'LTC'
 ];
 
 // Delay function to space out requests
