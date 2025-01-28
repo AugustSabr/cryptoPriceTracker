@@ -43,7 +43,7 @@ function getOHLCData(symbol, interval = 1) {
             throw new Error('Error from Kraken API: ' + parsedData.error.join(', '));
           }
           const TimeOpenObject = Object.fromEntries(parsedData.result[[symbol + '/USD']].map(item => [item[0], Number(item[1])]));
-          console.log(TimeOpenObject);
+          // console.log(TimeOpenObject);
           resolve(TimeOpenObject);
         } catch (error) {
           console.error('Error parsing OHLC data:', error);
