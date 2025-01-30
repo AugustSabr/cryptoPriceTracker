@@ -2,6 +2,15 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
+// Add global error handlers
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 const KRKN_REST_URL = 'api.kraken.com';
 const dataDir = path.join(__dirname, 'data');
 
@@ -145,13 +154,12 @@ function getFormattedTimestamp() {
     hour12: false
   }).replace(',', ' -');
 }
+
 // Start initial processing and schedule subsequent runs
 async function start() {
-
   try {
     console.log(`${getFormattedTimestamp()} - Starting data updates.`);
     await processSymbols();
-
     console.log(`${getFormattedTimestamp()} - Completed all data updates.`);
   } catch (error) {
     console.error('Error during data update cycle:', error);
@@ -161,5 +169,5 @@ async function start() {
 // Initial run
 start();
 
-// Schedule runs every 3 hours - the time it takes to get all data
+// Schedule runs every 6 hours - the time it takes to get all data
 setInterval(start, (6 * 60 * 60 * 1000) - (28 * 60 * 1000));
