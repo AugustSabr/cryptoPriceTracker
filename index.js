@@ -1,39 +1,55 @@
 const https = require('https');
 const fs = require('fs');
+const path = require('path');
 
 const KRKN_REST_URL = 'api.kraken.com';
-const symbols = [
-  'BTC',
-  'ETH',
-  'XRP',
-  'SOL',
-  'DOGE',
-  'ADA',
-  'TRX',
-  'LINK',
-  'AVAX',
-  'DOT',
-  'MATIC',
-  'UNI',
-  'SHIB',
-  'LTC'
-];
+const dataDir = path.join(__dirname, 'data');
+
+// Ensure data directory exists
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+const pairMap = {
+  'BTC': 'XXBTZUSD',  // Bitcoin
+  'ETH': 'XETHZUSD',  // Ethereum
+  'XRP': 'XXRPZUSD',  // Ripple
+  'SOL': 'SOLUSD',    // Solana
+  'DOGE': 'XDGUSD',   // Dogecoin
+  'ADA': 'ADAUSD',    // Cardano
+  'TRX': 'TRXUSD',    // Tron
+  'LINK': 'LINKUSD',  // Chainlink
+  'AVAX': 'AVAXUSD',  // Avalanche
+  'DOT': 'DOTUSD',    // Polkadot
+  'MATIC': 'MATICUSD',// Polygon
+  'UNI': 'UNIUSD',    // Uniswap
+  'SHIB': 'SHIBUSD',  // Shiba Inu
+  'LTC': 'XLTCZUSD'   // Litecoin
+};
+
+const symbols = Object.keys(pairMap);
 
 // Delay function to space out requests
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Funksjon for å hente OHLC data fra Kraken REST API
+// Function to fetch OHLC data from Kraken REST API
 function getOHLCData(symbol, interval = 1) {
   return new Promise((resolve, reject) => {
+    const pair = pairMap[symbol];
+    if (!pair) {
+      reject(new Error(`No pair mapping found for symbol: ${symbol}`));
+      return;
+    }
+
     const options = {
       method: 'GET',
       hostname: KRKN_REST_URL,
-      path: `/0/public/OHLC?pair=${symbol}/USD&interval=${interval}`
+      path: `/0/public/OHLC?pair=${pair}&interval=${interval}`
     };
 
-    https.get(options, (res) => {
+    const req = https.get(options, (res) => {
       let data = '';
 
       res.on('data', (chunk) => {
@@ -44,67 +60,106 @@ function getOHLCData(symbol, interval = 1) {
         try {
           const parsedData = JSON.parse(data);
           if (parsedData.error && parsedData.error.length > 0) {
-            throw new Error('Error from Kraken API: ' + parsedData.error.join(', '));
+            reject(new Error(`Kraken API Error: ${parsedData.error.join(', ')}`));
+            return;
           }
-          const TimeOpenObject = Object.fromEntries(parsedData.result[[symbol + '/USD']].map(item => [item[0], Number(item[1])]));
-          // console.log(TimeOpenObject);
+          const pairKey = Object.keys(parsedData.result)[0];
+          const ohlcData = parsedData.result[pairKey];
+          if (!ohlcData) {
+            reject(new Error('No OHLC data found in response'));
+            return;
+          }
+          const TimeOpenObject = Object.fromEntries(
+            ohlcData.map(item => [item[0], Number(item[1])])
+          );
           resolve(TimeOpenObject);
         } catch (error) {
-          console.error('Error parsing OHLC data:', error);
+          reject(error);
         }
       });
-    }).on('error', (err) => {
-      console.error('Request error:', err);
     });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    req.end();
   });
 }
 
-// Modified start function with spaced out requests
-async function start() {
-  for (let i = 0; i < symbols.length; i++) {
+async function updateJsonFile(newData, filePath) {
+  try {
+    let existingData = {};
     try {
-      const TimeOpenObject = await getOHLCData(symbols[i], 15);
-      await updateJsonFile(TimeOpenObject, `./data/${symbols[i]}.json`);
-      // console.log('File update complete for ' + symbols[i]);
-      const now = new Date();
-      const timestamp = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()} - ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-      console.log(`${timestamp} - File update complete for ${symbols[i]}`);
-      
-      // Delay the next request by 10 seconds (adjustable)
-      await delay(60*1000);  // 1 minute between each request
-    } catch (error) {
-      console.error('Error fetching OHLC data:', error);
+      const data = await fs.promises.readFile(filePath, 'utf8');
+      try {
+        existingData = JSON.parse(data);
+      } catch (parseError) {
+        // Handle empty/corrupted files by resetting the data
+        existingData = {};
+      }
+    } catch (readErr) {
+      if (readErr.code !== 'ENOENT') throw readErr;
     }
+
+    const updatedData = { ...existingData, ...newData };
+    await fs.promises.writeFile(filePath, JSON.stringify(updatedData, null, 2));
+  } catch (err) {
+    console.error('Error updating JSON file:', err);
+    throw err;
   }
 }
 
+// Main function to process all symbols
+async function processSymbols() {
+  for (const symbol of symbols) {
+    try {
+      // Fetch 5-minute interval data
+      const ohlc5 = await getOHLCData(symbol, 5);
+      await delay(60*1000); // Respect rate limit
 
+      // Fetch 15-minute interval data
+      const ohlc15 = await getOHLCData(symbol, 15);
+
+      // Update JSON files
+      const basePath = path.join(dataDir, symbol.toLowerCase());
+      await updateJsonFile(ohlc5, `${basePath}5.json`);
+      await updateJsonFile(ohlc15, `${basePath}15.json`);
+
+    } catch (error) {
+      console.error(`Error processing ${symbol}:`, error.message);
+    }
+    await delay(60*1000); // Delay before next symbol
+  }
+}
+
+function getFormattedTimestamp() {
+  const now = new Date();
+  return now.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).replace(',', ' -');
+}
+// Start initial processing and schedule subsequent runs
+async function start() {
+
+  try {
+    console.log(`${getFormattedTimestamp()} - Starting data updates.`);
+    await processSymbols();
+
+    console.log(`${getFormattedTimestamp()} - Completed all data updates.`);
+  } catch (error) {
+    console.error('Error during data update cycle:', error);
+  }
+}
+
+// Initial run
 start();
 
-setInterval(start, 3*60*60*1000) // Call every 3 hours (10 800 000 milliseconds)
-
-function dateToLocaleString(timestamp ){
-  const date = new Date(timestamp * 1000);
-  return date.toLocaleString()
-}
-
-function updateJsonFile(newData, path) {
-  return fs.promises.readFile(path, 'utf8')
-    .then(existingData => {
-      const parsedData = JSON.parse(existingData);
-      const updatedData = { ...parsedData, ...newData };
-      const jsonString = JSON.stringify(updatedData, null, 2);
-
-      // console.log('first: ', dateToLocaleString(Object.keys(updatedData)[0]).toLocaleString())
-      // console.log('first: ', dateToLocaleString(Object.keys(updatedData)[Object.keys(updatedData).length - 1]).toLocaleString())
-
-      return fs.promises.writeFile(path, jsonString);
-    })
-    .then(() => {
-      // console.log('File updated successfully');
-    })
-    .catch(err => {
-      console.error('Error reading or writing file:', err);
-      throw err;
-    });
-}
+// Schedule runs every 3 hours - the time it takes to get all data
+setInterval(start, (6 * 60 * 60 * 1000) - (28 * 60 * 1000));
