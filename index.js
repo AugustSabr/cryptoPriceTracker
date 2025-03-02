@@ -211,7 +211,7 @@ app.listen(PORT, () => {
 });
 
 // Initial run
-// start();
+start();
 
 // Schedule runs every 6 hours - the time it takes to get all data
-// setInterval(start, (6 * 60 * 60 * 1000) - (28 * 60 * 1000));
+setInterval(start, (6 * 60 * 60 * 1000) - (28 * 60 * 1000));
