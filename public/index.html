@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypto Data Viewer</title>
+  <style>
+      body { font-family: Arial, sans-serif; padding: 20px; }
+      .controls { margin-bottom: 20px; }
+      select, input { padding: 8px; margin-right: 10px; }
+      #dataPreview { white-space: pre-wrap; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <select id="overviewSelect">
+      <option disabled selected hidden>Select analysis for overview</option>
+    </select>
+
+    <select id="intervalSelect">
+      <option value="5">5 Minutes</option>
+      <option value="15">15 Minutes</option>
+    </select>
+    <input type="number" id="investmentInput" value="10000" min="0" step="1000" style="width: auto; max-width: 75px;">
+    <input type="number" id="makerFeeInput" value="0.02" min="0" style="width: auto; max-width: 50px;"><span>%</span>
+
+
+    <!-- <select id="symbolSelect">
+      <option value="">Select Cryptocurrency</option>
+    </select> -->
+
+
+  </div>
+  <div id="overviewResultContainer"></div>
+  <div id="dataPreview">Select a cryptocurrency to view data</div>
+  <script src="app.js"></script>
+</body>
+</html>

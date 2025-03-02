@@ -1,6 +1,7 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const express = require('express');
 
 // Add global error handlers
 process.on('uncaughtException', (error) => {
@@ -13,6 +14,10 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const KRKN_REST_URL = 'api.kraken.com';
 const dataDir = path.join(__dirname, 'data');
+
+// Add Express app
+const app = express();
+const PORT = 3000;
 
 // Ensure data directory exists
 if (!fs.existsSync(dataDir)) {
@@ -37,6 +42,40 @@ const pairMap = {
 };
 
 const symbols = Object.keys(pairMap);
+
+app.use(express.static('public'));
+
+// Add API endpoints
+app.get('/api/symbols', (req, res) => {
+  res.json(Object.keys(pairMap));
+});
+
+app.get('/api/data/:symbol/:interval', (req, res) => {
+  const { symbol, interval } = req.params;
+  const validIntervals = ['5', '15'];
+  
+  if (!validIntervals.includes(interval)) {
+    return res.status(400).json({ error: 'Invalid interval' });
+  }
+
+  const filePath = path.join(dataDir, `${symbol.toLowerCase()}${interval}.json`);
+  
+  fs.readFile(filePath, 'utf8', (err, data) => {
+    if (err) {
+      return res.status(404).json({ error: 'Data not found' });
+    }
+    try {
+      const jsonData = JSON.parse(data);
+      res.json({
+        symbol: symbol.toUpperCase(),
+        interval: `${interval} minutes`,
+        data: jsonData
+      });
+    } catch (parseError) {
+      res.status(500).json({ error: 'Error parsing data' });
+    }
+  });
+});
 
 // Delay function to space out requests
 function delay(ms) {
@@ -166,8 +205,13 @@ async function start() {
   }
 }
 
+// set up website
+app.listen(PORT, () => {
+  console.log(`${getFormattedTimestamp()} - Web server running on port ${PORT}`);
+});
+
 // Initial run
-start();
+// start();
 
 // Schedule runs every 6 hours - the time it takes to get all data
-setInterval(start, (6 * 60 * 60 * 1000) - (28 * 60 * 1000));
+// setInterval(start, (6 * 60 * 60 * 1000) - (28 * 60 * 1000));
